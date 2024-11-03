@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
-  <!--remote name="{REMOTE_NAME}"
-          fetch="https://{REMOTE_FETCH}"/-->
-  <!--project name="{DEVICE_TREE_URL_REPO}" path="{DEVICE_PATH}" remote="{DEVICE_REMOTE_NAME}" revision="{DEVICE_TREE_BRANCH}"/-->
+  remote name="twrp_Infinix-X6812"
+          fetch="https://github.com/myself-6264/Modified-X6812-TWRP-Tree"
+  project name="https://github.com/myself-6264/Modified-X6812-TWRP-Tree" path="device/infinix/Infinix-X6812" remote="Infinix-X6812" revision="main"/-->
 </manifest>
