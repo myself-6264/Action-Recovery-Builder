@@ -62,14 +62,14 @@ jobs:
       - name: Setup repo and sync manifest
         run: |
           mkdir -p $HOME/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
+          curl https://storage.googleapis.com/git-repo-downloads/repo  > $HOME/bin/repo
           chmod a+x $HOME/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
           mkdir -p workspace
           cd workspace
-          repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
-          repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
+          $HOME/bin/repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git  -b ${{ inputs.MANIFEST_BRANCH }}
+          $HOME/bin/repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
 
       - name: Clone device tree
         run: |
@@ -92,4 +92,4 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            w
+            workspace/out/target/product/${{ inputs.DEVICE_NAME }}/*.img
