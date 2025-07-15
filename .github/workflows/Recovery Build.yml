@@ -40,8 +40,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      PATH: ${{ runner.env.HOME }}/bin:${{ runner.env.PATH }}
 
     steps:
       - name: Show inputs
@@ -69,12 +67,14 @@ jobs:
 
       - name: Initialize manifest
         run: |
+          export PATH=$HOME/bin:$PATH
           mkdir -p workspace
           cd workspace
           repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
 
       - name: Sync manifest
         run: |
+          export PATH=$HOME/bin:$PATH
           cd workspace
           repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
 
@@ -108,3 +108,4 @@ jobs:
             Target: ${{ inputs.BUILD_TARGET }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
