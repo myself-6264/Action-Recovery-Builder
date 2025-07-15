@@ -1,2 +1,23 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto-detect text files
+* text=auto eol=lf
+
+# Ensure shell scripts and makefiles use LF
+*.sh text eol=lf
+Makefile text eol=lf
+*.mk   text eol=lf
+
+# Treat binaries as binary
+*.img     binary
+*.zip     binary
+*.jar     binary
+*.apk     binary
+*.so      binary
+*.bin     binary
+
+# Avoid diffing large binary blobs
+*.tar     binary
+*.gz      binary
+*.xz      binary
+
+# Build artifacts (cache, compiled outputs)
+out/**    binary
