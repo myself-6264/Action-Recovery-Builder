@@ -64,7 +64,7 @@ jobs:
           mkdir -p $HOME/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
           chmod a+x $HOME/bin/repo
-          export PATH=$HOME/bin:$PATH
+          echo "$HOME/bin" >> $GITHUB_PATH
 
           mkdir -p workspace
           cd workspace
@@ -92,12 +92,4 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            workspace/out/target/product/${{ inputs.DEVICE_NAME }}/${{ inputs.BUILD_TARGET }}.img
-          tag_name: ${{ github.run_id }}
-          name: PBRP-${{ inputs.DEVICE_NAME }}
-          body: |
-            Built using PBRP GitHub Actions
-            Branch: ${{ inputs.MANIFEST_BRANCH }}
-            Target: ${{ inputs.BUILD_TARGET }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            w
