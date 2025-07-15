@@ -40,6 +40,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      PATH: ${{ runner.env.HOME }}/bin:${{ runner.env.PATH }}
 
     steps:
       - name: Show inputs
@@ -61,26 +63,20 @@ jobs:
 
       - name: Setup repo tool
         run: |
-          mkdir -p ~/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-          chmod a+x ~/bin/repo
-        env:
-          PATH: $HOME/bin:$PATH
+          mkdir -p $HOME/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > $HOME/bin/repo
+          chmod a+x $HOME/bin/repo
 
       - name: Initialize manifest
         run: |
           mkdir -p workspace
           cd workspace
           repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
-        env:
-          PATH: $HOME/bin:$PATH
 
       - name: Sync manifest
         run: |
           cd workspace
           repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
-        env:
-          PATH: $HOME/bin:$PATH
 
       - name: Clone device tree
         run: |
