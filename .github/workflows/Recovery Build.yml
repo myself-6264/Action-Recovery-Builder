@@ -7,12 +7,12 @@ on:
         type: choice
         description: Manifest Branch
         options:
-        - android-12.1
-        - android-11
-        - android-10
-        - android-9.0
-        - android-8.1
-        - android-7.1
+          - android-12.1
+          - android-11
+          - android-10
+          - android-9.0
+          - android-8.1
+          - android-7.1
         required: true
         default: android-12.1
       DEVICE_TREE_URL:
@@ -25,15 +25,15 @@ on:
         description: Path to sync device tree (e.g., device/oem/device)
         required: true
       DEVICE_NAME:
-        description: Device codename (e.g., a10)
+        description: Device codename (e.g., laurel_sprout)
         required: true
       BUILD_TARGET:
         type: choice
         description: Partition to build
         options:
-        - boot
-        - recovery
-        - vendor_boot
+          - boot
+          - recovery
+          - vendor_boot
         required: true
         default: recovery
 
@@ -41,69 +41,91 @@ jobs:
   build:
     runs-on: ubuntu-22.04
 
+    env:
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
+      PATH: ${{ env.JAVA_HOME }}/bin:${{ env.PATH }}
+
     steps:
-    - name: Show inputs
-      run: |
-        echo "Manifest Branch: ${{ inputs.MANIFEST_BRANCH }}"
-        echo "Device Tree URL: ${{ inputs.DEVICE_TREE_URL }}"
-        echo "Device Branch: ${{ inputs.DEVICE_TREE_BRANCH }}"
-        echo "Device Path: ${{ inputs.DEVICE_PATH }}"
-        echo "Device Codename: ${{ inputs.DEVICE_NAME }}"
-        echo "Build Target: ${{ inputs.BUILD_TARGET }}"
+      - name: Show inputs
+        run: |
+          echo "Manifest Branch: ${{ inputs.MANIFEST_BRANCH }}"
+          echo "Device Tree URL: ${{ inputs.DEVICE_TREE_URL }}"
+          echo "Device Branch: ${{ inputs.DEVICE_TREE_BRANCH }}"
+          echo "Device Path: ${{ inputs.DEVICE_PATH }}"
+          echo "Device Codename: ${{ inputs.DEVICE_NAME }}"
+          echo "Build Target: ${{ inputs.BUILD_TARGET }}"
 
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt -y install openjdk-8-jdk git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc unzip bc python3
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt -y install openjdk-11-jdk git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc unzip bc python3
 
-    - name: Setup repo tool
-      run: |
-        mkdir -p ~/bin
-        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
-        chmod a+x ~/bin/repo
-        echo "PATH=\"$HOME/bin:$PATH\"" >> $GITHUB_ENV
+      - name: Setup repo tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "PATH=$HOME/bin:$PATH" >> $GITHUB_ENV
 
-    - name: Initialize manifest
-      run: |
-        mkdir -p workspace
-        cd workspace
-        repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
+      - name: Cache ccache
+        uses: actions/cache@v3
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ inputs.DEVICE_NAME }}-${{ hashFiles('**/Android.mk') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ inputs.DEVICE_NAME }}-
 
-    - name: Sync manifest
-      run: |
-        cd workspace
-        repo sync -j$(nproc --all) --force-sync --no-tags --no-clone-bundle
+      - name: Initialize manifest
+        run: |
+          mkdir -p workspace
+          cd workspace
+          repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
 
-    - name: Clone device tree
-      run: |
-        cd workspace
-        git clone ${{ inputs.DEVICE_TREE_URL }} -b ${{ inputs.DEVICE_TREE_BRANCH }} ${{ inputs.DEVICE_PATH }}
+      - name: Sync manifest
+        run: |
+          cd workspace
+          repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
 
-    - name: Setup build environment
-      run: |
-        cd workspace
-        source build/envsetup.sh
-        lunch pb_${{ inputs.DEVICE_NAME }}-eng
+      - name: Clone device tree
+        run: |
+          cd workspace
+          # Remove existing device folder if any to avoid conflicts
+          rm -rf ${{ inputs.DEVICE_PATH }}
+          git clone ${{ inputs.DEVICE_TREE_URL }} -b ${{ inputs.DEVICE_TREE_BRANCH }} ${{ inputs.DEVICE_PATH }}
 
-    - name: Build recovery
-      run: |
-        cd workspace
-        export ALLOW_MISSING_DEPENDENCIES=true
-        make ${{ inputs.BUILD_TARGET }}image -j$(nproc --all)
+      - name: Setup build environment
+        run: |
+          cd workspace
+          source build/envsetup.sh
+          lunch pb_${{ inputs.DEVICE_NAME }}-eng
 
-    - name: Upload build
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          workspace/out/target/product/${{ inputs.DEVICE_NAME }}/${{ inputs.BUILD_TARGET }}.img
-        tag_name: ${{ github.run_id }}
-        name: PBRP-${{ inputs.DEVICE_NAME }}
-        body: |
-          Built using PBRP GitHub Actions
-          Branch: ${{ inputs.MANIFEST_BRANCH }}
-          Target: ${{ inputs.BUILD_TARGET }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build recovery
+        run: |
+          cd workspace
+          export ALLOW_MISSING_DEPENDENCIES=true
+          make ${{ inputs.BUILD_TARGET }}image -j$(nproc)
+
+      - name: Verify build output
+        run: |
+          if [ ! -f workspace/out/target/product/${{ inputs.DEVICE_NAME }}/${{ inputs.BUILD_TARGET }}.img ]; then
+            echo "Build output not found!"
+            exit 1
+          else
+            echo "Build output found."
+          fi
+
+      - name: Upload build release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: workspace/out/target/product/${{ inputs.DEVICE_NAME }}/${{ inputs.BUILD_TARGET }}.img
+          tag_name: build-${{ github.run_number }}
+          name: PBRP-${{ inputs.DEVICE_NAME }}-build-${{ github.run_number }}
+          body: |
+            PitchBlack Recovery build for device ${{ inputs.DEVICE_NAME }}
+            Manifest branch: ${{ inputs.MANIFEST_BRANCH }}
+            Build target: ${{ inputs.BUILD_TARGET }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
