@@ -57,17 +57,20 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt -y install openjdk-8-jdk git-core gnupg flex bison gperf build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc unzip bc python3
+          sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf zip unzip python3
 
-      - name: Setup repo and sync manifest
+      - name: Download repo tool
         run: |
           mkdir -p $HOME/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo  > $HOME/bin/repo
           chmod a+x $HOME/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
+      - name: Setup repo and sync manifest
+        run: |
           mkdir -p workspace
           cd workspace
+          # Use absolute path to repo (bypass PATH issues)
           $HOME/bin/repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git  -b ${{ inputs.MANIFEST_BRANCH }}
           $HOME/bin/repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
 
