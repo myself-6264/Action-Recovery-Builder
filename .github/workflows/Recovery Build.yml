@@ -54,21 +54,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-     - name: Install dependencies
-  run: |
-    sudo dpkg --add-architecture arm64
-    sudo dpkg --add-architecture armhf
-    sudo apt update
-    sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf \
-                       zip unzip zlib1g-dev \
-                       libncurses5-dev:armhf libncurses5-dev \
-                       libtinfo5:armhf libreadline-dev:armhf \
-                       libssl-dev libxml2-utils \
-                       x11proto-core-dev libx11-dev lib32z1-dev \
-                       g++-multilib lib32z1 lib32z1-dev \
-                       python3
+      - name: Add Multiarch & Update Packages
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo dpkg --add-architecture armhf
+          sudo apt update
 
-      - name: Setup Java 8
+      - name: Install dependencies
+        run: |
+          sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf \
+                             zip unzip zlib1g-dev \
+                             libncurses5-dev:armhf libtinfo5:armhf \
+                             libreadline-dev:armhf \
+                             libssl-dev libxml2-utils \
+                             x11proto-core-dev libx11-dev \
+                             g++-multilib lib32z1 lib32z1-dev \
+                             python3
+
+      - name: Set Java 8 as default
         run: |
           sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
           sudo update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
@@ -105,13 +108,12 @@ jobs:
           make ${{ inputs.BUILD_TARGET }}image -j$(nproc)
         shell: bash
 
-      - name: Upload recovery image
+      - name: Upload recovery image artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pb-${{ inputs.DEVICE_NAME }}-${{ inputs.BUILD_TARGET }}.img
-          path: |
-            workspace/out/target/product/${{ inputs.DEVICE_NAME }}/*.img
+          path: workspace/out/target/product/${{ inputs.DEVICE_NAME }}/*.img
 
       - name: Create GitHub Release
         if: success()
@@ -119,13 +121,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs').promises;
             const tag = 'build-${{ inputs.DEVICE_NAME }}-${{ github.run_number }}';
-            await github.rest.repos.createRelease({
+            const release = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tag,
-              name: 'PBRP Build ${github.run_number} for ${{ inputs.DEVICE_NAME }}',
+              name: 'PBRP Build ${{ github.run_number }} for ${{ inputs.DEVICE_NAME }}',
               body: `
                 - Device: ${{ inputs.DEVICE_NAME }}
                 - Build Target: ${{ inputs.BUILD_TARGET }}
@@ -136,7 +137,8 @@ jobs:
               prerelease: false
             });
             return { tag: tag };
-          # Optional: store tag for next step
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to GitHub Release
         if: success()
@@ -145,6 +147,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: workspace/out/target/product/${{ inputs.DEVICE_NAME }}/recovery.img
-          asset_name: pb-${{ inputs.DEVICE_NAME }}-recovery.img
+          asset_path: workspace/out/target/product/${{ inputs.DEVICE_NAME }}/${{ inputs.BUILD_TARGET }}.img
+          asset_name: pb-${{ inputs.DEVICE_NAME }}-${{ inputs.BUILD_TARGET }}.img
           content_type: application/octet-stream
