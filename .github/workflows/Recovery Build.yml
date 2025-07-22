@@ -40,6 +40,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:20.04  # Use Ubuntu 20.04 container for legacy 32-bit support
 
     steps:
       - name: Show inputs
@@ -51,30 +53,32 @@ jobs:
           echo "Device Codename: ${{ inputs.DEVICE_NAME }}"
           echo "Build Target: ${{ inputs.BUILD_TARGET }}"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Install base dependencies
+        run: |
+          apt update
+          apt install -y software-properties-common
 
       - name: Add Multiarch & Update Packages
         run: |
-          sudo dpkg --add-architecture arm64
-          sudo dpkg --add-architecture armhf
-          sudo apt update
+          dpkg --add-architecture armhf
+          dpkg --add-architecture arm64
+          apt update
 
-      - name: Install dependencies
+      - name: Install dependencies (Ubuntu 20.04 compatible)
         run: |
-          sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf \
-                             zip unzip zlib1g-dev \
-                             libncurses5-dev:armhf libtinfo5:armhf \
-                             libreadline-dev:armhf \
-                             libssl-dev libxml2-utils \
-                             x11proto-core-dev libx11-dev \
-                             g++-multilib lib32z1 lib32z1-dev \
-                             python3
+          apt install -y openjdk-8-jdk git curl gnupg flex bison gperf \
+                         zip unzip zlib1g-dev \
+                         libncurses-dev:armhf libtinfo-dev:armhf \
+                         libreadline-dev:armhf \
+                         libssl-dev:armhf libxml2-utils \
+                         x11proto-core-dev libx11-dev \
+                         g++-multilib-armhf lib32z1-dev \
+                         python3
 
       - name: Set Java 8 as default
         run: |
-          sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
-          sudo update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
+          update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
+          update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
 
       - name: Download repo tool
         run: |
