@@ -57,42 +57,88 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf zip unzip python3
+          sudo apt -y install openjdk-8-jdk git curl gnupg flex bison gperf zip unzip \
+                              zlib1g-dev g++-multilib lib32z1-dev lib32ncurses5-dev \
+                              x11proto-core-dev libx11-dev lib32z1 lib32ncurses5 lib32readline5-dev \
+                              lib32ncurses5-dev lib32z1-dev lib32bz2-1.0 python3
+
+      - name: Setup Java 8
+        run: |
+          sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
+          sudo update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
 
       - name: Download repo tool
         run: |
           mkdir -p $HOME/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo  > $HOME/bin/repo
-          chmod a+x $HOME/bin/repo
+          curl -o $HOME/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+          chmod +x $HOME/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Setup repo and sync manifest
+      - name: Setup and sync PBRP manifest
         run: |
+          set -e
           mkdir -p workspace
           cd workspace
-          # Use absolute path to repo (bypass PATH issues)
-          $HOME/bin/repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git  -b ${{ inputs.MANIFEST_BRANCH }}
-          $HOME/bin/repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
+          repo init -u https://github.com/PitchBlackRecoveryProject/manifest_pb.git -b ${{ inputs.MANIFEST_BRANCH }}
+          repo sync -j$(nproc) --force-sync --no-tags --no-clone-bundle
+        shell: bash
 
       - name: Clone device tree
         run: |
           cd workspace
           git clone ${{ inputs.DEVICE_TREE_URL }} -b ${{ inputs.DEVICE_TREE_BRANCH }} ${{ inputs.DEVICE_PATH }}
+        shell: bash
 
-      - name: Setup build environment
+      - name: Build recovery image
         run: |
-          cd workspace
-          source build/envsetup.sh
-          lunch pb_${{ inputs.DEVICE_NAME }}-eng
-
-      - name: Build recovery
-        run: |
+          set -e
           cd workspace
           export ALLOW_MISSING_DEPENDENCIES=true
+          source build/envsetup.sh
+          lunch pb_${{ inputs.DEVICE_NAME }}-eng
           make ${{ inputs.BUILD_TARGET }}image -j$(nproc)
+        shell: bash
 
-      - name: Upload build
-        uses: softprops/action-gh-release@v1
+      - name: Upload recovery image
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: pb-${{ inputs.DEVICE_NAME }}-${{ inputs.BUILD_TARGET }}.img
+          path: |
             workspace/out/target/product/${{ inputs.DEVICE_NAME }}/*.img
+
+      - name: Create GitHub Release
+        if: success()
+        id: create_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs').promises;
+            const tag = 'build-${{ inputs.DEVICE_NAME }}-${{ github.run_number }}';
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: 'PBRP Build ${github.run_number} for ${{ inputs.DEVICE_NAME }}',
+              body: `
+                - Device: ${{ inputs.DEVICE_NAME }}
+                - Build Target: ${{ inputs.BUILD_TARGET }}
+                - Manifest Branch: ${{ inputs.MANIFEST_BRANCH }}
+                - CI Run: ${{ github.run_number }}
+              `,
+              draft: false,
+              prerelease: false
+            });
+            return { tag: tag };
+          # Optional: store tag for next step
+
+      - name: Upload to GitHub Release
+        if: success()
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: workspace/out/target/product/${{ inputs.DEVICE_NAME }}/recovery.img
+          asset_name: pb-${{ inputs.DEVICE_NAME }}-recovery.img
+          content_type: application/octet-stream
